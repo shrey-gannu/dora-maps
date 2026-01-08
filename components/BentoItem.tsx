@@ -1,25 +1,30 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { BentoItem as BentoItemType, FallbackData } from '../types';
 import SectionHeaderWidget from './widgets/SectionHeaderWidget';
 import LinkWidget from './widgets/LinkWidget';
 import MapWidget from './widgets/MapWidget';
 import SpotifyWidget from './widgets/SpotifyWidget';
 import ProjectLinkWidget from './widgets/ProjectLinkWidget';
+import ImageWidget from './widgets/ImageWidget';
 import EditControls from './widgets/EditControls';
 
 interface BentoItemProps {
   item: BentoItemType;
   fallback: FallbackData;
   isMobile: boolean;
+  
+  // New Pointer Event Handler
+  onPointerDown: (e: React.PointerEvent, itemId: string) => void;
+  
+  // Edit Handlers
   onResize: (id: string, newDimension: string, isMobile: boolean) => void;
   onDelete: (id: string) => void;
-  onDragStart: (id: string) => void;
-  onMove: (targetId: string, isMobile: boolean) => void;
-  onDragEnd: (success: boolean) => void;
-  draggedId: string | null;
-  isDragging: boolean;
   onClick?: () => void;
+
+  // Visual States
+  isDraggingSource: boolean; // Is this the item currently being dragged?
+  isOverlay?: boolean;       // Is this the floating overlay?
 }
 
 const BentoItem: React.FC<BentoItemProps> = ({ 
@@ -28,63 +33,61 @@ const BentoItem: React.FC<BentoItemProps> = ({
     isMobile, 
     onResize, 
     onDelete, 
-    onDragStart, 
-    onMove, 
-    onDragEnd, 
-    draggedId,
-    isDragging,
-    onClick
+    onPointerDown,
+    onClick,
+    isDraggingSource,
+    isOverlay = false
 }) => {
-  const [isVisualPlaceholder, setIsVisualPlaceholder] = useState(false);
-  const isBeingDragged = draggedId === item.data.id;
-
-  useEffect(() => {
-    if (!isBeingDragged) {
-        setIsVisualPlaceholder(false);
-    }
-  }, [isBeingDragged]);
-
+  
+  // Determine Dimensions and Position
   const getGridStyle = (): React.CSSProperties => {
-    if (isMobile) return {};
+    // If overlay, we don't use grid positioning, just sizing
+    if (isOverlay) return { height: '100%', width: '100%' };
 
-    const styleString = item.data.style?.desktop;
+    const pos = isMobile ? item.position.mobile : item.position.desktop;
+    const styleString = isMobile ? (item.data.style?.mobile || '2x2') : (item.data.style?.desktop || '2x2');
 
-    // Force full width for section headers
+    let colSpan = 1;
+    let rowSpan = 1;
+
     if (item.data.type === 'section-header') {
-        return { gridColumn: '1 / -1' };
+        colSpan = isMobile ? 4 : 8; 
+        rowSpan = 1; 
+    } else {
+        const spanMap: Record<string, [number, number]> = {
+            '1x4': [1, 4], // Corrected: Full Width for Form 2
+            '2x2': [2, 2], 
+            '2x4': [2, 4], 
+            '4x2': [4, 2], 
+            '4x4': [4, 4], 
+        };
+        const [rows, cols] = spanMap[styleString] || [1, 1];
+        colSpan = cols;
+        rowSpan = rows;
     }
 
-    if (!styleString) {
-        return { gridColumn: 'span 1', gridRow: 'span 1' };
-    }
-
-    const spanMap: Record<string, [number, number]> = {
-        '1x4': [1, 4], 
-        '2x2': [2, 2], 
-        '2x4': [2, 4], 
-        '4x2': [4, 2], 
-        '4x4': [4, 4], 
-    };
-
-    const [rows, cols] = spanMap[styleString] || [1, 1];
-    
     return {
-      gridColumn: `span ${cols}`,
-      gridRow: `span ${rows}`
+      gridColumnStart: (pos?.x ?? 0) + 1,
+      gridColumnEnd: `span ${colSpan}`,
+      gridRowStart: (pos?.y ?? 0) + 1,
+      gridRowEnd: `span ${rowSpan}`,
+      zIndex: isDraggingSource ? 0 : 20, // Lower z-index for source so overlay is always on top
     };
   };
 
   const renderWidget = () => {
     const { data } = item;
+    
     switch (data.type) {
       case 'section-header':
         return <SectionHeaderWidget data={data} />;
+      case 'image':
+        return <ImageWidget data={data} />;
       case 'link':
         if (data.href?.includes('spotify.com')) {
           return <SpotifyWidget data={data} fallback={fallback} />;
         }
         if (data.href?.includes('google.com/maps')) {
-          // Treating Maps as "Photos" (resizable, movable)
           return <MapWidget data={data} fallback={fallback} />;
         }
         if(data.href?.includes('showmeaqi.com')) {
@@ -92,12 +95,10 @@ const BentoItem: React.FC<BentoItemProps> = ({
         }
         return <LinkWidget data={data} fallback={fallback} isMobile={isMobile} />;
       case 'rich-text':
-          // Render a simple placeholder text for new rich-text items or existing ones
-          // In a real app this would be a full editor
           const textContent = data.content?.content?.[0]?.content?.[0]?.text;
           return (
-              <div className="w-full h-full bg-white rounded-3xl p-6 shadow-sm border border-black/[.08] overflow-hidden flex flex-col group-hover:shadow-xl transition-all duration-300">
-                  <p className="text-gray-800 whitespace-pre-wrap">{textContent}</p>
+              <div className="w-full h-full p-3 flex flex-col justify-start overflow-hidden group-hover:bg-gray-50 rounded-xl transition-colors bg-white border border-transparent">
+                  <p className="text-gray-800 whitespace-pre-wrap text-base pointer-events-none">{textContent}</p>
               </div>
           )
       default:
@@ -110,160 +111,70 @@ const BentoItem: React.FC<BentoItemProps> = ({
   };
 
   const aspectRatioMap: { [key: string]: string } = {
-    '1x4': 'aspect-[4/1]',
+    '1x4': 'aspect-[3/1]', // Wide Strip Aspect Ratio
     '2x4': 'aspect-[2/1]',
     '4x2': 'aspect-[1/2]',
     '2x2': 'aspect-square', 
     '4x4': 'aspect-square',
   };
   
-  const mobileStyle = item.data.style?.mobile;
-  const mobileAspectRatio = item.data.type !== 'section-header' && mobileStyle ? aspectRatioMap[mobileStyle] : '';
-
-  const getMobileSpanClass = () => {
-    if (!isMobile) return '';
-    if (item.data.type === 'section-header') return 'col-span-2';
-    if (mobileStyle === '2x2' || mobileStyle === '4x2') {
-        return 'col-span-1';
-    }
-    return 'col-span-2';
-  };
-
-  // --- Drag Event Handlers ---
-
-  const handleDragStart = (e: React.DragEvent) => {
-      // Don't drag if clicking input in section header
-      if ((e.target as HTMLElement).tagName === 'INPUT') {
-          e.preventDefault();
-          return;
-      }
-
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', item.data.id);
-      
-      if (e.currentTarget instanceof HTMLElement) {
-          const target = e.currentTarget;
-          const clone = target.cloneNode(true) as HTMLElement;
-          clone.classList.remove('group'); 
-          const controls = clone.querySelectorAll('.edit-controls');
-          controls.forEach(c => c.remove());
-          clone.style.width = `${target.offsetWidth}px`;
-          clone.style.height = `${target.offsetHeight}px`;
-          clone.style.position = 'absolute';
-          clone.style.top = '-9999px'; 
-          clone.style.left = '-9999px';
-          clone.style.zIndex = '1000';
-          clone.style.opacity = '1'; 
-          document.body.appendChild(clone);
-          
-          const rect = target.getBoundingClientRect();
-          e.dataTransfer.setDragImage(clone, e.clientX - rect.left, e.clientY - rect.top);
-          setTimeout(() => document.body.removeChild(clone), 0);
-      }
-      onDragStart(item.data.id);
-      setTimeout(() => setIsVisualPlaceholder(true), 0);
-  };
-
-  const handleDragEnd = (e: React.DragEvent) => {
-      setIsVisualPlaceholder(false);
-      const success = e.dataTransfer.dropEffect === 'move';
-      onDragEnd(success);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-      e.preventDefault(); 
-      e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDragEnter = (e: React.DragEvent) => {
-      e.preventDefault();
-      if (draggedId && draggedId !== item.data.id) {
-          onMove(item.data.id, isMobile);
-      }
-  };
+  const styleString = isMobile ? (item.data.style?.mobile || '2x2') : (item.data.style?.desktop || '2x2');
+  const mobileAspectRatio = item.data.type !== 'section-header' && isMobile ? aspectRatioMap[styleString] : '';
+  const heightClass = (isMobile && mobileAspectRatio) ? '' : 'h-full';
 
   // --- Styles ---
-  const groupClass = !isDragging ? 'group' : '';
-  
-  let containerClassName = `${groupClass} relative ${getMobileSpanClass()} select-none transition-all duration-200 ease-in-out`;
-  
-  if (isVisualPlaceholder) {
-      containerClassName += ' bg-gray-100/50 border-2 border-dashed border-gray-300 rounded-3xl opacity-60';
-  } else {
-      containerClassName += ' cursor-grab active:cursor-grabbing';
-  }
+  let containerClassName = `relative select-none transition-transform duration-200 ease-out`;
 
-  const dragProps = {
-    draggable: true,
-    onDragStart: handleDragStart,
-    onDragEnd: handleDragEnd,
-    onDragOver: handleDragOver,
-    onDragEnter: handleDragEnter,
-  };
-
-  const handleClick = (e: React.MouseEvent) => {
-      // Capture click for selection logic
-      if (onClick) onClick();
-      // Allow default behavior (e.g. following links) unless preventing it is strictly required
-      // For "Edit Mode", we typically might prevent navigation, but the user didn't ask to break links.
-  };
-
-  const content = isVisualPlaceholder ? null : renderWidget();
-  const isSectionHeader = item.data.type === 'section-header';
-
-  if (isSectionHeader) {
+  // IF this is the source item being dragged, hide content to create "Ghost" effect
+  // But keep the container so layout doesn't collapse
+  if (isDraggingSource) {
+      // Use opacity 0 or invisible to keep layout space but hide visuals
       return (
-        <div 
-            className={containerClassName} 
-            style={getGridStyle()}
-            {...dragProps}
-            onClick={handleClick}
-        >
-             <div className={`w-full h-full ${isVisualPlaceholder ? 'invisible' : ''}`}>
-                 {renderWidget()}
-             </div>
-             {/* Edit Controls for Section Header (Only Delete, No Resize) */}
-             {!isVisualPlaceholder && !isDragging && (
-               <EditControls 
-                 itemId={item.data.id}
-                 currentStyle={item.data.style}
-                 isMobile={isMobile}
-                 onDelete={onDelete}
-                 onResize={onResize}
-                 canResize={false} // Disable resizing
-               />
-           )}
-        </div>
-      )
+          <div 
+            style={getGridStyle()} 
+            className={`${containerClassName} opacity-0 pointer-events-none`}
+          >
+              <div className={`w-full h-full border-2 border-dashed border-gray-200 rounded-3xl`}></div>
+          </div>
+      );
   }
 
-  const heightClass = (isMobile && mobileAspectRatio) ? '' : 'h-full';
+  // If Overlay or Normal Item
+  if (!isOverlay) {
+      containerClassName += ' group cursor-grab active:cursor-grabbing hover:z-30';
+  } else {
+      // Overlay Styles
+      containerClassName += ' shadow-2xl scale-105 z-50 cursor-grabbing pointer-events-none'; 
+  }
 
   return (
     <div 
         className={containerClassName} 
-        style={getGridStyle()}
-        {...dragProps}
-        onClick={handleClick}
+        onPointerDown={(e) => !isOverlay && onPointerDown(e, item.data.id)}
+        onClick={() => !isOverlay && onClick && onClick()}
+        // Critical for mobile drag to not scroll page
+        // Only apply touch-action: none if we are draggable (not overlay)
+        style={{ ...getGridStyle(), touchAction: isOverlay ? 'auto' : 'none' }} 
     >
        <div className={`w-full ${heightClass} ${isMobile && mobileAspectRatio ? mobileAspectRatio : ''} pointer-events-none`}>
-          <div className={`pointer-events-auto h-full w-full ${isVisualPlaceholder ? 'invisible' : ''}`}> 
-            {content}
+          <div className={`pointer-events-auto h-full w-full`}> 
+            {renderWidget()}
           </div>
        </div>
        
-       {!isVisualPlaceholder && !isDragging && (
+       {!isOverlay && !isDraggingSource && (
            <EditControls 
              itemId={item.data.id}
              currentStyle={item.data.style}
              isMobile={isMobile}
              onDelete={onDelete}
              onResize={onResize}
-             canResize={true}
+             canResize={item.data.type !== 'section-header'}
+             itemType={item.data.type} 
            />
        )}
     </div>
   );
 };
 
-export default BentoItem;
+export default React.memo(BentoItem);

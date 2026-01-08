@@ -46,9 +46,42 @@ const LinkWidget: React.FC<LinkWidgetProps> = ({ data, fallback, isMobile }) => 
       );
     }
     
+    // Generic Link Card (e.g. Reddit, Personal Blogs, etc.)
+    // We try to make this look "beautiful" by fetching an icon and cleaning up the title
+    let hostname = '';
+    try {
+        hostname = new URL(href).hostname.replace('www.', '');
+    } catch (e) {
+        hostname = href;
+    }
+    
+    // If the title is just the URL (which is default on paste), show the hostname instead to look cleaner
+    const displayTitle = (title && title !== href) ? title : hostname;
+    
+    // Use Google's favicon service for a nice touch without backend
+    const faviconUrl = `https://www.google.com/s2/favicons?domain=${hostname}&sz=128`;
+
     return (
-      <div className="p-4 flex items-center justify-center h-full bg-gray-100">
-        <span className="font-semibold">{title || href}</span>
+      <div className="p-4 flex flex-col h-full justify-between bg-white hover:bg-gray-50 transition-colors">
+        <div className="flex items-start justify-between">
+           <img 
+             src={faviconUrl} 
+             alt="" 
+             className="w-8 h-8 rounded-lg shadow-sm border border-gray-100 object-contain bg-white" 
+             onError={(e) => {
+                 (e.target as HTMLImageElement).style.display = 'none';
+             }}
+           />
+           {/* Optional: Add an external link icon or arrow here if desired */}
+        </div>
+        <div className="mt-2">
+           <span className="font-semibold text-gray-900 text-sm line-clamp-2 leading-snug">
+               {displayTitle}
+           </span>
+           {(title && title !== href) && (
+               <span className="text-xs text-gray-400 mt-0.5 block">{hostname}</span>
+           )}
+        </div>
       </div>
     );
   };

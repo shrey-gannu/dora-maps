@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { BentoItemData, FallbackData } from '../../types';
 
@@ -15,7 +14,12 @@ const YoutubeIcon: React.FC = () => (
     </svg>
 );
 
-const Wrapper = ({ children, href }: { children: React.ReactNode; href: string | undefined }) => (
+interface WrapperProps {
+  children: React.ReactNode;
+  href?: string;
+}
+
+const Wrapper: React.FC<WrapperProps> = ({ children, href }) => (
   <a
     href={href}
     target="_blank"

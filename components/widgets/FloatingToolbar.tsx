@@ -56,8 +56,57 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         onAddSectionTitle();
     };
 
+    const handleShare = async () => {
+        const url = window.location.href;
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        
+        // On Mobile: Try Native Share
+        if (isMobile && navigator.share) {
+            try {
+                await navigator.share({
+                    title: document.title,
+                    url: url
+                });
+            } catch (err) {
+                console.error('Error sharing:', err);
+            }
+        } else {
+            // On Desktop/Fallback: Copy to Clipboard
+            try {
+                // Try modern API
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(url);
+                } else {
+                    // Fallback for insecure contexts (http) or older browsers
+                    const textArea = document.createElement("textarea");
+                    textArea.value = url;
+                    
+                    // Ensure it's not visible but part of DOM
+                    textArea.style.position = "fixed";
+                    textArea.style.left = "-9999px";
+                    textArea.style.top = "0";
+                    
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    
+                    const successful = document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    
+                    if (!successful) throw new Error('execCommand copy failed');
+                }
+                // Success feedback
+                alert("Copied");
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                // Last resort: prompt user to copy manually
+                prompt("Copy this link:", url);
+            }
+        }
+    };
+
     return (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center">
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center font-['Inter']">
             
             {/* Popups */}
             {activePopup === 'link' && (
@@ -115,11 +164,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                 
                 {/* Share Button */}
                 <button 
-                    onClick={() => {
-                        const url = window.location.href;
-                        navigator.clipboard.writeText(url);
-                        alert("Link copied to clipboard!");
-                    }}
+                    onClick={handleShare}
                     className="bg-[#4ADE80] hover:bg-[#42ce76] text-white font-bold text-xs px-3 py-1.5 rounded-full mr-1 transition-all active:scale-95 shadow-sm whitespace-nowrap"
                 >
                     Share
@@ -158,7 +203,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
                 <button 
                     onClick={handleAddSectionTitle}
                     className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-600"
-                    title="Add Section Title"
+                    title="Add New Place"
                 >
                     <MapIcon className="text-green-500 scale-75" />
                 </button>

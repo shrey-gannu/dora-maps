@@ -9,21 +9,23 @@ interface EditControlsProps {
     onDelete: (id: string) => void;
     onResize: (id: string, newDimension: string, isMobile: boolean) => void;
     canResize?: boolean;
+    itemType?: string;
 }
 
 const resizeOptions = [
     { name: "2x2", value: '2x2', icon: <ResizeIconTwoByTwo /> },
-    { name: "1x4", value: '1x4', icon: <ResizeIconOneByFour /> },
-    { name: "2x4", value: '2x4', icon: <ResizeIconTwoByFour /> },
+    { name: "1x4", value: '1x4', icon: <ResizeIconOneByFour /> }, // Restored to 2nd position (Form 2)
+    { name: "2x4", value: '2x4', icon: <ResizeIconTwoByFour /> }, 
     { name: "4x2", value: '4x2', icon: <ResizeIconFourByTwo /> },
     { name: "4x4", value: '4x4', icon: <ResizeIconFourByFour /> },
 ];
 
-const EditControls: React.FC<EditControlsProps> = ({ itemId, currentStyle, isMobile, onDelete, onResize, canResize = true }) => {
+const EditControls: React.FC<EditControlsProps> = ({ itemId, currentStyle, isMobile, onDelete, onResize, canResize = true, itemType }) => {
   const currentDimension = isMobile ? currentStyle?.mobile : currentStyle?.desktop;
 
   return (
-    <>
+    // Stop propagation here so clicking controls doesn't start a drag on the parent item
+    <div onPointerDown={(e) => e.stopPropagation()}>
       {/* Delete Button */}
       <div className="edit-controls absolute -top-3 -left-3 opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 transform transition-all duration-200 ease-out z-10">
         <button 
@@ -61,7 +63,7 @@ const EditControls: React.FC<EditControlsProps> = ({ itemId, currentStyle, isMob
             </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

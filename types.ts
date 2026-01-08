@@ -83,3 +83,23 @@ export interface RichData {
 export interface FallbackData {
   [key: string]: UrlMetadata | RichData;
 }
+
+export type GuideVisualType = 'info' | 'beach' | 'place';
+
+export interface LocationData {
+    name: string;
+    lat: number;
+    lng: number;
+    address?: string;
+}
+
+export interface SectionData {
+    id: string;
+    type: 'default' | 'gmap_location';
+    visualType?: GuideVisualType;
+    visualImage?: string;
+    title?: string;
+    locationData?: LocationData;
+    isExpanded: boolean;
+    items: BentoItem[]; // Changed from ItemData[] to BentoItem[]
+}

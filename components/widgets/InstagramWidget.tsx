@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { BentoItemData, FallbackData, InstagramRichData } from '../../types';
 import { InstagramIcon } from '../icons/SocialIcons';
@@ -9,7 +8,12 @@ interface InstagramWidgetProps {
   isMobile?: boolean;
 }
 
-const Wrapper = ({ children, href }: { children: React.ReactNode; href: string | undefined }) => (
+interface WrapperProps {
+  children: React.ReactNode;
+  href?: string;
+}
+
+const Wrapper: React.FC<WrapperProps> = ({ children, href }) => (
   <a
     href={href}
     target="_blank"
